@@ -240,6 +240,10 @@ const worker = new Worker(
   {
     connection: queueConnection,
     concurrency: 1,
+    lockDuration: 10 * 60 * 1000,  // 10 minutes — long enough for dual-pass HLS transcode
+    lockRenewTime: 2 * 60 * 1000,  // Renew lock every 2 minutes (well before expiry)
+    stalledInterval: 60 * 1000,    // Check for stalled jobs every 60s (not every 30s default)
+    maxStalledCount: 3,             // Allow 3 stall checks before marking job as failed
   }
 );
 
