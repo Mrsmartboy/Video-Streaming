@@ -4,10 +4,14 @@ import fs from 'fs';
 import os from 'os';
 import crypto from 'crypto';
 import { Readable } from 'stream';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import ffmpeg from 'fluent-ffmpeg';
 import prisma from '../config/prisma';
 import { getRawVideoObject, uploadProcessedFile } from '../services/storage';
 import { queueConnection, TRANSCODE_QUEUE_NAME } from '../config/queue';
+
+const execPromise = promisify(exec);
 
 // ─── HLS Transcode (multi-bitrate, AES-128 encryption) ────────────────────────
 // Produces:
@@ -115,6 +119,15 @@ async function runHlsTranscode(
   await fs.promises.writeFile(path.join(outputDir, 'master.m3u8'), masterPlaylist);
 }
 
+// ─── yt-dlp downloader helper ──────────────────────────────────────────────────
+async function downloadWithYtDlp(url: string, outputPath: string): Promise<void> {
+  // We use best video + best audio and merge into mp4, or fall back to best mp4
+  const command = `yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --merge-output-format mp4 -o "${outputPath}" "${url}"`;
+  console.log(`[Worker] Running yt-dlp: ${command}`);
+  await execPromise(command);
+  console.log(`[Worker] yt-dlp download completed for URL: ${url}`);
+}
+
 // ─── Stream-to-file helper ─────────────────────────────────────────────────────
 function pipeStreamToFile(stream: Readable, filePath: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -192,11 +205,30 @@ const worker = new Worker(
 
       // 3. Download raw video (from MinIO or import URL)
       if (job.data.importUrl) {
-        console.log(`[Worker] Downloading from import URL: ${job.data.importUrl}`);
-        const response = await fetch(job.data.importUrl);
-        if (!response.ok) throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-        const arrayBuffer = await response.arrayBuffer();
-        await fs.promises.writeFile(inputPath, Buffer.from(arrayBuffer));
+        const importUrl = job.data.importUrl;
+        console.log(`[Worker] Processing import URL: ${importUrl}`);
+        
+        let downloaded = false;
+        try {
+          console.log(`[Worker] Attempting download with yt-dlp...`);
+          await downloadWithYtDlp(importUrl, inputPath);
+          if (fs.existsSync(inputPath)) {
+            downloaded = true;
+            console.log(`[Worker] Downloaded successfully via yt-dlp.`);
+          } else {
+            console.warn(`[Worker] yt-dlp completed but output file not found at ${inputPath}.`);
+          }
+        } catch (ytDlpError) {
+          console.error(`[Worker] yt-dlp download failed:`, ytDlpError);
+        }
+
+        if (!downloaded) {
+          console.log(`[Worker] Falling back to standard fetch download for URL: ${importUrl}`);
+          const response = await fetch(importUrl);
+          if (!response.ok) throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+          const arrayBuffer = await response.arrayBuffer();
+          await fs.promises.writeFile(inputPath, Buffer.from(arrayBuffer));
+        }
       } else {
         console.log(`[Worker] Downloading from MinIO key: ${rawKey}`);
         const rawStream = await getRawVideoObject(rawKey);
