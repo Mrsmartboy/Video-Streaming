@@ -505,6 +505,19 @@ export async function deleteVideo(req: AuthRequest, res: Response) {
       return res.status(403).json({ message: 'Only the course instructor can delete videos.' });
     }
 
+    // Clean up any pending transcode jobs for this lesson from the BullMQ queue
+    try {
+      const jobs = await transcodeQueue.getJobs(['waiting', 'delayed', 'paused', 'active']);
+      for (const job of jobs) {
+        if (job.data && job.data.lessonId === lessonId) {
+          await job.remove();
+          console.log(`[Queue] Removed pending transcoding job ${job.id} for Lesson ${lessonId}`);
+        }
+      }
+    } catch (queueErr) {
+      console.error('Error removing queued transcoding jobs during video deletion:', queueErr);
+    }
+
     // Update lesson to remove video details and reset status
     await prisma.lesson.update({
       where: { id: lessonId },

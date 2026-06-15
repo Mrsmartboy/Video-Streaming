@@ -1,7 +1,9 @@
 import { Response } from 'express';
+import { Queue } from 'bullmq';
 import prisma from '../config/prisma';
 import { AuthRequest } from '../middleware/types';
 import { deleteLessonVideoFiles } from '../services/storage';
+import { queueConnection, TRANSCODE_QUEUE_NAME } from '../config/queue';
 
 export async function createCourse(req: AuthRequest, res: Response) {
   const { title, description, imageUrl } = req.body;
@@ -270,6 +272,22 @@ export async function deleteLesson(req: AuthRequest, res: Response) {
 
     if (lesson.course.instructorId !== userId) {
       return res.status(403).json({ message: 'Only the course instructor can delete lessons.' });
+    }
+
+    // Clean up any pending transcode jobs for this lesson from the BullMQ queue
+    const queue = new Queue(TRANSCODE_QUEUE_NAME, { connection: queueConnection });
+    try {
+      const jobs = await queue.getJobs(['waiting', 'delayed', 'paused', 'active']);
+      for (const job of jobs) {
+        if (job.data && job.data.lessonId === lessonId) {
+          await job.remove();
+          console.log(`[Queue] Removed pending transcoding job ${job.id} for Lesson ${lessonId}`);
+        }
+      }
+    } catch (queueErr) {
+      console.error('Error removing queued transcoding jobs during lesson deletion:', queueErr);
+    } finally {
+      await queue.close();
     }
 
     // Clean up S3/MinIO video files for this lesson

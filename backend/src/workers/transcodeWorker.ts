@@ -126,17 +126,17 @@ function pipeStreamToFile(stream: Readable, filePath: string): Promise<void> {
 }
 
 // ─── Upload all HLS files recursively ─────────────────────────────────────────
-async function uploadDir(baseDir: string, lessonId: string): Promise<void> {
+async function uploadDir(baseDir: string, lessonId: string, rootDir: string = baseDir): Promise<void> {
   const entries = await fs.promises.readdir(baseDir, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(baseDir, entry.name);
     if (entry.isDirectory()) {
-      await uploadDir(fullPath, lessonId);
+      await uploadDir(fullPath, lessonId, rootDir);
     } else {
       if (entry.name === 'input.mp4' || entry.name === 'enc.keyinfo') continue;
 
-      // Build relative key: e.g. "480p/seg001.ts"
-      const relative = path.relative(baseDir, fullPath).replace(/\\/g, '/');
+      // Build relative key: e.g. "480p/seg001.ts" relative to rootDir
+      const relative = path.relative(rootDir, fullPath).replace(/\\/g, '/');
       const minioKey = `processed/${lessonId}/${relative}`;
 
       const fileContent = await fs.promises.readFile(fullPath);
@@ -164,6 +164,16 @@ const worker = new Worker(
     try {
       // 1. Create temp directory
       await fs.promises.mkdir(tempDir, { recursive: true });
+
+      // Check if the lesson still exists in the database
+      const lessonExists = await prisma.lesson.findUnique({
+        where: { id: lessonId },
+        select: { id: true },
+      });
+      if (!lessonExists) {
+        console.log(`[Worker] Lesson ${lessonId} no longer exists. Skipping stale job.`);
+        return;
+      }
 
       // 2. Generate AES-128 encryption key and store in DB
       const cipherKey = crypto.randomBytes(16);
@@ -214,13 +224,31 @@ const worker = new Worker(
       });
       console.log(`[Worker] Job ${job.id} completed successfully for Lesson ${lessonId}`);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[Worker] Job failed for Lesson ${lessonId}:`, error);
+
+      // If the lesson was deleted, we'll get P2025. Handle cleanly.
+      const isRecordNotFound = error?.code === 'P2025' || 
+                               (error?.meta && error?.meta?.cause === 'Record to update not found.');
+      if (isRecordNotFound) {
+        console.log(`[Worker] Lesson ${lessonId} record not found in DB. Terminating job cleanly.`);
+        return;
+      }
+
       try {
-        await prisma.lesson.update({
+        const lessonExists = await prisma.lesson.findUnique({
           where: { id: lessonId },
-          data: { videoStatus: 'FAILED' },
+          select: { id: true },
         });
+        if (lessonExists) {
+          await prisma.lesson.update({
+            where: { id: lessonId },
+            data: { videoStatus: 'FAILED' },
+          });
+        } else {
+          console.log(`[Worker] Lesson ${lessonId} no longer exists. Skipping FAILED status update.`);
+          return; // Exit cleanly as lesson is gone
+        }
       } catch (dbErr) {
         console.error(`[Worker] Could not update lesson to FAILED:`, dbErr);
       }
