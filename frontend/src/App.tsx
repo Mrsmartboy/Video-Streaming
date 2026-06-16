@@ -8,10 +8,11 @@ import { Home } from './pages/Home';
 import { CourseDetails } from './pages/CourseDetails';
 import { WatchLesson } from './pages/WatchLesson';
 import { Dashboard } from './pages/Dashboard';
+import { AdminDashboard } from './pages/AdminDashboard';
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRole?: 'STUDENT' | 'INSTRUCTOR' }> = ({ children, allowedRole }) => {
+const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRole?: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN' }> = ({ children, allowedRole }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -27,7 +28,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRole?: 'STUDE
   }
 
   if (allowedRole && user.role !== allowedRole) {
-    return <Navigate to={user.role === 'INSTRUCTOR' ? '/instructor-dashboard' : '/'} replace />;
+    let redirectTo = '/';
+    if (user.role === 'ADMIN') {
+      redirectTo = '/admin-dashboard';
+    } else if (user.role === 'INSTRUCTOR') {
+      redirectTo = '/instructor-dashboard';
+    }
+    return <Navigate to={redirectTo} replace />;
   }
 
   return <>{children}</>;
@@ -75,6 +82,16 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute allowedRole="INSTRUCTOR">
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Protected Admin Routes */}
+            <Route
+              path="/admin-dashboard"
+              element={
+                <ProtectedRoute allowedRole="ADMIN">
+                  <AdminDashboard />
                 </ProtectedRoute>
               }
             />

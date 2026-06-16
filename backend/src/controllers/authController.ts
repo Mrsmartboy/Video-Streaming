@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { Role } from '@prisma/client';
 import prisma from '../config/prisma';
 import { AuthRequest } from '../middleware/types';
 
@@ -13,7 +14,12 @@ export async function register(req: AuthRequest, res: Response) {
     return res.status(400).json({ message: 'Email, password, and name are required.' });
   }
 
-  const normalizedRole = role === 'INSTRUCTOR' ? 'INSTRUCTOR' : 'STUDENT';
+  let normalizedRole: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN' = 'STUDENT';
+  if (role === 'INSTRUCTOR') {
+    normalizedRole = 'INSTRUCTOR';
+  } else if (role === 'ADMIN') {
+    normalizedRole = 'ADMIN';
+  }
 
   try {
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -28,7 +34,7 @@ export async function register(req: AuthRequest, res: Response) {
         email,
         password: hashedPassword,
         name,
-        role: normalizedRole,
+        role: normalizedRole as unknown as Role,
       },
     });
 

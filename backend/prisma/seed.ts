@@ -35,7 +35,17 @@ async function main() {
     },
   });
 
+  const admin = await prisma.user.create({
+    data: {
+      email: 'admin@lms.com',
+      password: hashedPassword,
+      name: 'System Admin',
+      role: 'ADMIN',
+    },
+  });
+
   console.log('Users created:');
+  console.log(`- Admin: ${admin.email} (password: password123)`);
   console.log(`- Instructor: ${instructor.email} (password: password123)`);
   console.log(`- Student: ${student.email} (password: password123)`);
 

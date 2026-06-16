@@ -8,7 +8,7 @@ export const Register: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'STUDENT' | 'INSTRUCTOR'>('STUDENT');
+  const [role, setRole] = useState<'STUDENT' | 'INSTRUCTOR' | 'ADMIN'>('STUDENT');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -31,7 +31,9 @@ export const Register: React.FC = () => {
       });
       login(data.token, data.user);
       
-      if (data.user.role === 'INSTRUCTOR') {
+      if (data.user.role === 'ADMIN') {
+        navigate('/admin-dashboard');
+      } else if (data.user.role === 'INSTRUCTOR') {
         navigate('/instructor-dashboard');
       } else {
         navigate('/');
@@ -102,7 +104,7 @@ export const Register: React.FC = () => {
 
           <div>
             <label className="block text-zinc-300 text-xs font-semibold uppercase tracking-wider mb-2">Join As</label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <button
                 type="button"
                 onClick={() => setRole('STUDENT')}
@@ -124,6 +126,17 @@ export const Register: React.FC = () => {
                 }`}
               >
                 INSTRUCTOR
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole('ADMIN')}
+                className={`py-2 px-4 rounded-xl border text-xs font-semibold tracking-wide cursor-pointer transition ${
+                  role === 'ADMIN'
+                    ? 'bg-violet-600/20 border-violet-500 text-violet-400'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
+                }`}
+              >
+                ADMIN
               </button>
             </div>
           </div>

@@ -3,6 +3,7 @@ import cors from 'cors';
 import authRoutes from './routes/authRoutes';
 import courseRoutes from './routes/courseRoutes';
 import videoRoutes from './routes/videoRoutes';
+import adminRoutes from './routes/adminRoutes';
 import prisma from './config/prisma';
 import { initStorage } from './services/storage';
 
@@ -22,6 +23,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/videos', videoRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

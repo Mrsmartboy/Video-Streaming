@@ -29,7 +29,9 @@ export const Login: React.FC = () => {
       });
       login(data.token, data.user);
       
-      if (data.user.role === 'INSTRUCTOR') {
+      if (data.user.role === 'ADMIN') {
+        navigate('/admin-dashboard');
+      } else if (data.user.role === 'INSTRUCTOR') {
         navigate('/instructor-dashboard');
       } else {
         navigate('/');

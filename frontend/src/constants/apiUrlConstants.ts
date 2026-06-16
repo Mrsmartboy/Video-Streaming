@@ -23,3 +23,8 @@ export const API_VIDEO_IMPORT_URL = (lessonId: string) => `/api/videos/lessons/$
 export const API_VIDEO_DELETE = (lessonId: string) => `/api/videos/lessons/${lessonId}/video`;
 export const API_VIDEO_PLAYBACK_TOKEN = (lessonId: string) => `/api/videos/lessons/${lessonId}/playback-token`;
 export const API_VIDEO_DRM_LICENSE = (lessonId: string) => `/api/videos/lessons/${lessonId}/drm-license`;
+
+// ─── Admin ───────────────────────────────────────────────────
+export const API_ADMIN_USERS = '/api/admin/users';
+export const API_ADMIN_USER_DELETE = (userId: string) => `/api/admin/users/${userId}`;
+

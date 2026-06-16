@@ -32,7 +32,7 @@ export function authenticateJWT(req: AuthRequest, res: Response, next: NextFunct
     const decoded = jwt.verify(token, JWT_SECRET) as {
       id: string;
       email: string;
-      role: 'STUDENT' | 'INSTRUCTOR';
+      role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
       name: string;
     };
     req.user = decoded;
@@ -44,7 +44,7 @@ export function authenticateJWT(req: AuthRequest, res: Response, next: NextFunct
   }
 }
 
-export function requireRole(role: 'STUDENT' | 'INSTRUCTOR') {
+export function requireRole(role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN') {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       res.status(401).json({ message: 'Authentication required.' });
